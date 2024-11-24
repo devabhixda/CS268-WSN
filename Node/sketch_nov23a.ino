@@ -3,6 +3,8 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncUDP.h>
 #include "FirebaseESP8266.h"
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #include <map>
 #include <vector>
@@ -15,6 +17,8 @@ using namespace std;
 FirebaseData firebaseData;
 FirebaseAuth auth;
 FirebaseConfig config;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000);
 
 // WiFi credentials
 const char* WIFI_SSID = "";
@@ -53,6 +57,7 @@ unsigned long lastPacketTime = 0;
 const int MAX_PACKETS_PER_SECOND = 20; // Limit packet processing rate
 int packetCount = 0;
 unsigned long lastPacketCountReset = 0;
+unsigned long currentTimestamp;
 
 void setup() {
   // put your setup code here, to run once:
@@ -75,6 +80,8 @@ void setup() {
   config.host = FIREBASE_HOST;
   config.signer.tokens.legacy_token = FIREBASE_AUTH;
   Firebase.begin(&config, &auth);
+
+  timeClient.begin();
   
   Serial.println("Start state: " + currentState);
   
@@ -117,6 +124,8 @@ void restart() {
 }
 
 void loop() {
+  timeClient.update();
+  currentTimestamp = timeClient.getEpochTime();
   // put your main code here, to run repeatedly
   Serial.println("Current state: " + currentState);
   prevState = currentState;
@@ -216,7 +225,7 @@ void handleUDPPacket(AsyncUDPPacket packet) {
     int value = doc["value"];
     SensorData sensorData = {
       value,
-      millis()
+      currentTimestamp
     };
     nodeData[senderId] = sensorData;
     Serial.println("Received data from node " + senderId + ": " + String(value));
@@ -278,7 +287,7 @@ void updateFirebase() {
     String networkPath = "network_status/";
     Firebase.setString(firebaseData, networkPath + "current_parent", nodeId);
     Firebase.setInt(firebaseData, networkPath + "active_nodes", nodeNumMapping.size() + 1);
-    Firebase.setInt(firebaseData, networkPath + "last_update", millis());
+    Firebase.setInt(firebaseData, networkPath + "last_update", currentTimestamp);
 
     for (const auto& pair : nodeData) {
       String nodePath = "sensor_data/" + pair.first + "/" + pair.second.timestamp + "/"; 
@@ -286,7 +295,7 @@ void updateFirebase() {
     }
     
     // Also store our own sensor data
-    String ownNodePath = "sensor_data/" + nodeId + "/" + millis() + "/";
+    String ownNodePath = "sensor_data/" + nodeId + "/" + currentTimestamp + "/";
     int ownValue = random(100); // Replace with actual sensor reading
     Firebase.setInt(firebaseData, ownNodePath + "value", ownValue);
     
