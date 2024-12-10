@@ -66,6 +66,3 @@ Before uploading the code, configure the following parameters:
 - Verify WiFi credentials and Firebase configuration
 - Use Serial Monitor for debugging
 - Ensure nodes are within WiFi range of each other
-
-Citations:
-[1] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/32569256/c3eec5ca-213c-4023-8694-0ada67430726/paste.txt
